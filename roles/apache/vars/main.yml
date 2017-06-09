@@ -1,3 +1,0 @@
-apache_dirs:
-  - "{{ sites_available }}"
-  - "{{ sites_enabled }}"

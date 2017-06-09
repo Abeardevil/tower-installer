@@ -1,0 +1,31 @@
+[tower]
+{% for host in groups[tower_webservers_group] %}
+{{ hostvars[host][tower_inventory_hostname_variable] }}
+{% endfor %}
+
+[database]
+{% for host in groups[tower_dbservers_group] %}
+{{ hostvars[host][tower_inventory_hostname_variable] }}
+{% endfor %}
+
+
+[all:vars]
+admin_password='{{tower_admin_password}}'
+
+pg_host='{{tower_postgres_host}}'
+pg_port='{{tower_postgres_port}}'
+
+pg_database='{{tower_postgres_database}}'
+pg_username='{{tower_postgres_username}}'
+pg_password='{{tower_postgres_password}}'
+
+rabbitmq_port={{tower_rabbitmq_port}}
+rabbitmq_vhost={{tower_rabbitmq_vhost}}
+rabbitmq_username={{tower_rabbitmq_username}}
+rabbitmq_password='{{tower_rabbitmq_password}}'
+rabbitmq_cookie={{tower_rabbitmq_cookie}}
+
+# Needs to be true for fqdns and ip addresses
+rabbitmq_use_long_name={{tower_rabbitmq_use_long_name}}
+
+minimum_var_space: 10

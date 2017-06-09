@@ -1,0 +1,7 @@
+---
+
+#Install Tower in the EC2 Cloud Environment
+- hosts: localhost
+  connection: local
+  roles:
+    - cloud

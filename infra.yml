@@ -1,6 +1,6 @@
 ---
 
-#First create the VPC
+#Set up the EC2 cloud environment for Ansible Tower
 - hosts: localhost
   connection: local
   roles:

@@ -1,8 +1,8 @@
 ---
 # defaults file for tower
 
-tower_webservers_group: security_group_webservers
-tower_dbservers_group: security_group_dbservers
+tower_webservers_group: security_group_ansible_webserver
+tower_dbservers_group: security_group_ansible_dbserver
 
 tower_inventory_hostname_variable: ec2_private_ip_address
 

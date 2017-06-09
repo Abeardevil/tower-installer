@@ -180,7 +180,8 @@
         group_id: "{{vpc_bastion_security_group_name}}"
   
 - name: Create webservers
-  ec2:
+  local_action:
+    module: ec2
     key_name: "{{web_keypair_name}}"
     region: "{{vpc_region}}"
     instance_type: t2.medium
@@ -192,6 +193,7 @@
         Name: "{{item}}"
     vpc_subnet_id: "{{public_subnet.subnet.id}}"
     assign_public_ip: yes
+    volumes: "{{vpc_webserver_volumes}}"
     instance_tags: "{'type': 'webserver', 'Name': '{{item}}'}"
   with_items: "{{tower_webservers}}"
   register: webservers
@@ -212,7 +214,8 @@
     verbosity: 1
 
 - name: Create database servers
-  ec2:
+  local_action:
+    module: ec2
     key_name: "{{db_keypair_name}}"
     region: "{{vpc_region}}"
     instance_type: t2.medium
@@ -224,6 +227,7 @@
         Name: "{{item}}"
     vpc_subnet_id: "{{private_subnet.subnet.id}}"
     assign_public_ip: no
+    volumes: "{{vpc_dbserver_volumes}}"
     instance_tags: "{'type': 'dbserver', 'Name': '{{item}}'}"
   with_items: "{{tower_dbservers}}"
   register: dbservers
@@ -244,7 +248,8 @@
     verbosity: 1
 
 - name: Create bastion hosts
-  ec2:
+  local_action:
+      module: ec2
       key_name: "{{bastion_keypair_name}}"
       region: "{{vpc_region}}"
       instance_type: t2.medium
@@ -256,16 +261,12 @@
           Name: "{{bastion_host_name}}"
       vpc_subnet_id: "{{public_subnet.subnet.id}}"
       assign_public_ip: yes
-      instance_tags: "{'type': 'bastion', 'Name': '{{item}}'}"
+      volumes: "{{vpc_bastion_volumes}}"
+      instance_tags: "{'type': 'bastion', 'Name': '{{bastion_host_name}}'}"
   register: bastion_host
 
-- name: Assign elastic IP to bastion host
-  ec2_eip:
-      device_id: "{{bastion_host.instance_id}}"
-      ip: "{{bastion_elastic_ip}}"
-
 - name: Gather facts about bastion hosts
-  when: bastions.changed
+  when: bastion_host.changed
   ec2_remote_facts:
       region: "{{vpc_region}}"
       filters:
@@ -274,7 +275,7 @@
   register: bastion_facts
 
 - name: Debug bastion_facts
-  when: bastions.changed
+  when: bastion_host.changed
   debug:
       var: bastion_facts
       verbosity: 1

@@ -14,7 +14,19 @@ vpc_public_subnet_cidr: 10.1.3.128/25
 vpc_bastion_security_group_name: ansible-bastion
 vpc_webserver_security_group_name: ansible-webserver
 vpc_dbserver_security_group_name: ansible-dbserver
-      
+
+vpc_webserver_volumes:
+    - device_name: /dev/xvda
+      volume_size: 15
+
+vpc_dbserver_volumes:
+    - device_name: /dev/xvda
+      volume_size: 15
+
+vpc_bastion_volumes:
+    - device_name: /dev/xvda
+      volume_size: 8
+
 # Tower role stuff
 tower_webservers:
     - towerweb1
@@ -25,8 +37,7 @@ tower_dbservers:
     - towerdb1
     - towerdb2
 
-bastion_hosts:
-    - bastion1
+bastion_host_name: bastion1
 
 webserver_ami: ami-0932686c
 dbserver_ami: ami-0932686c

@@ -1,0 +1,12 @@
+- hosts: web
+  name: Installs lameapp on all the app servers
+  become: yes
+  roles:
+    - lameapp
+
+- hosts: haproxy
+  name: configures haproxy on the haproxy server
+  become: yes
+  roles:
+    - haproxy
+

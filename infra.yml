@@ -1,0 +1,7 @@
+---
+
+#First create the VPC
+- hosts: localhost
+  connection: local
+  roles:
+    - cloud

@@ -1,0 +1,8 @@
+*.orig
+*.retry
+.DS_STORE
+ansible.log
+*.swp
+*.*.swp
+inventory.ini
+license.txt

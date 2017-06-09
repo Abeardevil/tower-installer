@@ -1,0 +1,16 @@
+- name: Setup Consul
+  hosts:
+  roles:
+    - role: consul
+  post_tasks:
+    - block:
+      - name: install epel
+
+      - name: install python pip
+
+      - name: Install consul package
+
+      - name: Set K/Vs on consul
+
+      delegate_to:
+      run_once: yes

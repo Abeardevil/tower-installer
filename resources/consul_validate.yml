@@ -1,0 +1,14 @@
+- name: Validate Consul Config
+  remote_user: ec2-user
+  hosts: tag_function_consul
+  tasks:
+    - name: Assert testing
+      assert:
+        that:
+          - "{{ lookup('consul_kv', 'bootcamp/alpha', host='52.15.208.236')}} == 1"
+          - "{{ lookup('consul_kv', 'bootcamp/bravo', host='52.15.208.236')}} == 2"
+          - "{{ lookup('consul_kv', 'bootcamp/charlie', host='52.15.208.236')}} == 3"
+          - "{{ lookup('consul_kv', 'bootcamp/delta', host='52.15.208.236')}} == 4"
+          - "{{ lookup('consul_kv', 'bootcamp/echo', host='52.15.208.236')}} == 5"
+          - "{{ lookup('consul_kv', 'bootcamp/foxtrot', host='52.15.208.236')}} == 6"
+

@@ -1,0 +1,13 @@
+---
+# defaults file for vpc
+
+vpc_name: my_vpc
+vpc_tenancy: default
+
+vpc_cidr: 10.1.3.0/24
+vpc_region: us-east-2
+vpc_subnets:
+    - cidr: 10.1.3.0/25
+      az: us-east-2a
+    - cidr: 10.1.3.128/25
+      az: us-east-2a

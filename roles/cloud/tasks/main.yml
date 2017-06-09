@@ -1,0 +1,280 @@
+---
+# tasks file for vpc
+
+- name: Create VPC
+  ec2_vpc_net:
+    name: "{{vpc_name}}"
+    state: present
+    cidr_block: "{{vpc_cidr}}"
+    region: "{{vpc_region}}"
+    tags: "{{vpc_tags}}"
+    tenancy: "{{vpc_tenancy}}"
+  register: vpc
+
+- name: Debug VPC info
+  debug:
+    var: vpc
+    verbosity: 1
+
+- name: Create private subnet for DB servers
+  ec2_vpc_subnet:
+    state: present
+    vpc_id: "{{vpc.vpc.id}}"
+    cidr: "{{vpc_private_subnet_cidr}}"
+    region: "{{vpc_region}}"
+    tags:
+      Name: "{{vpc_private_subnet_name}}"
+  register: private_subnet
+
+- name: Create public subnet for web servers
+  ec2_vpc_subnet:
+    state: present
+    vpc_id: "{{vpc.vpc.id}}"
+    cidr: "{{vpc_public_subnet_cidr}}"
+    region: "{{vpc_region}}"
+    tags:
+      Name: "{{vpc_public_subnet_name}}"
+  register: public_subnet
+
+- name: Create Internet Gateway
+  ec2_vpc_igw:
+    vpc_id: "{{vpc.vpc.id}}"
+    state: present
+    region: "{{vpc_region}}"
+  register: igw
+
+- name: Debug IGW info
+  debug:
+    var: igw
+    verbosity: 1
+
+- name: Create routing table for public subnet
+  ec2_vpc_route_table:
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    tags:
+      Name: public-rtb-{{public_subnet.subnet.id}}
+    subnets:
+      - "{{public_subnet.subnet.id}}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{igw.gateway_id}}"
+
+- name: Create NAT gateway for private subnet
+  ec2_vpc_nat_gateway:
+    state: present
+    subnet_id: "{{public_subnet.subnet.id}}"
+    wait: yes
+    region: "{{vpc_region}}"
+    if_exist_do_not_create: true
+  register: nat_gateway
+
+- name: Debug NAT Gateway info
+  debug:
+    var: nat_gateway
+    verbosity: 1
+
+- name: Create routing table for private subnet
+  ec2_vpc_route_table:
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    tags:
+      Name: private-rtb-{{private_subnet.subnet.id}}
+    subnets:
+      - "{{private_subnet.subnet.id}}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{nat_gateway.nat_gateway_id}}"
+
+- name: Create bastion security group
+  ec2_group:
+    name: "{{vpc_bastion_security_group_name}}"
+    description: SG for Bastion server
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    rules:
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+  register: bastion_sg
+
+- name: Create webserver security group
+  ec2_group:
+    name: "{{vpc_webserver_security_group_name}}"
+    description: SG for Webservers
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    purge_rules: false
+  register: webservers_sg
+
+- name: Update webserver security group rules
+  when: webservers_sg.changed == true
+  ec2_group:
+    name: "{{vpc_webserver_security_group_name}}"
+    description: SG for Webservers
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    rules:
+      - proto: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 5672
+        to_port: 5672
+        group_id: "{{vpc_webserver_security_group_name}}"
+      - proto: tcp
+        from_port: 25672
+        to_port: 25672
+        group_id: "{{vpc_webserver_security_group_name}}"
+      - proto: tcp
+        from_port: 4369
+        to_port: 4369
+        group_id: "{{vpc_webserver_security_group_name}}"
+
+- name: Create database security group
+  ec2_group:
+    name: "{{vpc_dbserver_security_group_name}}"
+    description: SG for Databases
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    purge_rules: false
+  register: databases_sg
+
+- name: Update database security group rules
+  when: databases_sg.changed == true
+  ec2_group:
+    name: "{{vpc_dbserver_security_group_name}}"
+    description: SG for Databases
+    vpc_id: "{{vpc.vpc.id}}"
+    region: "{{vpc_region}}"
+    rules:
+      - proto: tcp
+        from_port: 5432
+        to_port: 5432
+        group_id: "{{vpc_webserver_security_group_name}}"
+      - proto: tcp
+        from_port: 5432
+        to_port: 5432
+        group_id: "{{vpc_dbserver_security_group_name}}"
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        group_id: "{{vpc_dbserver_security_group_name}}"
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        group_id: "{{vpc_webserver_security_group_name}}"
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        group_id: "{{vpc_bastion_security_group_name}}"
+  
+- name: Create webservers
+  ec2:
+    key_name: "{{web_keypair_name}}"
+    region: "{{vpc_region}}"
+    instance_type: t2.medium
+    image: "{{webserver_ami}}"
+    wait: no
+    group: "{{vpc_webserver_security_group_name}}"
+    exact_count: 1
+    count_tag:
+        Name: "{{item}}"
+    vpc_subnet_id: "{{public_subnet.subnet.id}}"
+    assign_public_ip: yes
+    instance_tags: "{'type': 'webserver', 'Name': '{{item}}'}"
+  with_items: "{{tower_webservers}}"
+  register: webservers
+
+- name: Gather facts about webservers
+  when: webservers.changed
+  ec2_remote_facts:
+    region: "{{vpc_region}}"
+    filters:
+      vpc-id: "{{vpc.vpc.id}}"
+      "tag:type": webserver
+  register: webserver_facts
+
+- name: Debug webserver_facts
+  when: webservers.changed
+  debug:
+    var: webserver_facts
+    verbosity: 1
+
+- name: Create database servers
+  ec2:
+    key_name: "{{db_keypair_name}}"
+    region: "{{vpc_region}}"
+    instance_type: t2.medium
+    image: "{{dbserver_ami}}"
+    wait: no
+    group: "{{vpc_dbserver_security_group_name}}"
+    exact_count: 1
+    count_tag:
+        Name: "{{item}}"
+    vpc_subnet_id: "{{private_subnet.subnet.id}}"
+    assign_public_ip: no
+    instance_tags: "{'type': 'dbserver', 'Name': '{{item}}'}"
+  with_items: "{{tower_dbservers}}"
+  register: dbservers
+
+- name: Gather facts about database servers
+  when: dbservers.changed
+  ec2_remote_facts:
+    region: "{{vpc_region}}"
+    filters:
+      vpc-id: "{{vpc.vpc.id}}"
+      "tag:type": dbserver
+  register: database_facts
+
+- name: Debug database_facts
+  when: dbservers.changed
+  debug:
+    var: database_facts
+    verbosity: 1
+
+- name: Create bastion hosts
+  ec2:
+      key_name: "{{bastion_keypair_name}}"
+      region: "{{vpc_region}}"
+      instance_type: t2.medium
+      image: "{{bastion_ami}}"
+      wait: yes
+      group: "{{vpc_bastion_security_group_name}}"
+      exact_count: 1
+      count_tag:
+          Name: "{{bastion_host_name}}"
+      vpc_subnet_id: "{{public_subnet.subnet.id}}"
+      assign_public_ip: yes
+      instance_tags: "{'type': 'bastion', 'Name': '{{item}}'}"
+  register: bastion_host
+
+- name: Assign elastic IP to bastion host
+  ec2_eip:
+      device_id: "{{bastion_host.instance_id}}"
+      ip: "{{bastion_elastic_ip}}"
+
+- name: Gather facts about bastion hosts
+  when: bastions.changed
+  ec2_remote_facts:
+      region: "{{vpc_region}}"
+      filters:
+          vpc-id: "{{vpc.vpc.id}}"
+          "tag:type": bastion
+  register: bastion_facts
+
+- name: Debug bastion_facts
+  when: bastions.changed
+  debug:
+      var: bastion_facts
+      verbosity: 1
